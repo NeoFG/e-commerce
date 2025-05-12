@@ -14,33 +14,11 @@ function instalar_http() {
     echo "✅ Apache instalado y en ejecución."
   fi
 
-  echo "🔒 Verificando si mod_ssl está instalado..."
-  if rpm -q mod_ssl > /dev/null 2>&1; then
-    echo "✅ mod_ssl ya está instalado."
-  else
-    echo "➡ Instalando mod_ssl y openssl..."
-    dnf install -y mod_ssl openssl
-  fi
-
-  echo "🔐 Generando certificados autofirmados..."
-  mkdir -p /etc/pki/tls/{certs,private}
-  openssl genrsa -out /etc/pki/tls/private/ca.key 2048
-  openssl req -new -key /etc/pki/tls/private/ca.key -out /etc/pki/tls/private/ca.csr -subj "/C=MX/ST=Puebla/L=Puebla/O=Tiendavirtual/CN=tiendavirtual.local"
-  openssl x509 -req -days 365 -in /etc/pki/tls/private/ca.csr -signkey /etc/pki/tls/private/ca.key -out /etc/pki/tls/certs/ca.crt
-
-  echo "🛠️ Configurando SSL de Apache..."
-  sed -i 's|^SSLCertificateFile.*|SSLCertificateFile /etc/pki/tls/certs/ca.crt|' /etc/httpd/conf.d/ssl.conf
-  sed -i 's|^SSLCertificateKeyFile.*|SSLCertificateKeyFile /etc/pki/tls/private/ca.key|' /etc/httpd/conf.d/ssl.conf
-
-  echo "🔁 Reiniciando Apache..."
-  systemctl restart httpd
-
-  echo "🧱 Abriendo puertos HTTP/HTTPS..."
+  echo "🧱 Abriendo puertos HTTP..."
   firewall-cmd --permanent --add-service=http
-  firewall-cmd --permanent --add-service=https
   firewall-cmd --reload
 
-  echo "✅ Apache + HTTPS configurado correctamente."
+  echo "✅ Apache configurado correctamente."
 }
 
 function instalar_dns() {
@@ -157,7 +135,7 @@ EOF
 function menu() {
   clear
   echo "========= MENÚ DE CONFIGURACIÓN DEL SERVIDOR ========="
-  echo "1. Instalar HTTP (Apache + HTTPS)"
+  echo "1. Instalar HTTP (Apache)"
   echo "2. Instalar DNS (Bind dinámico)"
   echo "3. Instalar POP3 (pendiente)"
   echo "4. Instalar SMTP (pendiente)"
