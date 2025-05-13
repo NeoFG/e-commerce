@@ -1,6 +1,12 @@
 #!/bin/bash
 
-# ========= MENÚ DE CONFIGURACIÓN DEL SERVIDOR E-COMMERCE =========
+# ======== FUNCIONES =========
+
+function detectar_ip() {
+  IP_LOCAL=$(ip -4 addr show | grep -v 127.0.0.1 | grep inet | awk '{print $2}' | cut -d/ -f1 | head -n 1)
+  IP_INVERSA=$(echo "$IP_LOCAL" | awk -F. '{print $3"."$2"."$1}')
+  ULT_OCTETO=$(echo "$IP_LOCAL" | awk -F. '{print $4}')
+}
 
 function instalar_http() {
   echo "➡ Verificando si Apache ya está instalado..."
@@ -156,6 +162,8 @@ function menu() {
     *) echo "❌ Opción inválida. Intenta nuevamente." ;;
   esac
 }
+
+# ======= EJECUCIÓN =========
 
 while true; do
   menu
