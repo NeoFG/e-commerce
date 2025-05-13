@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ======== FUNCIONES =========
+# ======== FUNCIONES Implementadas =========
 
 function detectar_ip() {
   IP_LOCAL=$(ip -4 addr show | grep -v 127.0.0.1 | grep inet | awk '{print $2}' | cut -d/ -f1 | head -n 1)
