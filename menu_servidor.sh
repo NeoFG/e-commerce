@@ -125,7 +125,13 @@ EOF
   echo "nameserver $IP_LOCAL" > /etc/resolv.conf
 
   echo "♻️ Reiniciando red..."
-  systemctl restart NetworkManager
+  if systemctl is-active --quiet NetworkManager; then
+    systemctl restart NetworkManager
+  elif systemctl is-active --quiet network; then
+    systemctl restart network
+  else
+    echo "⚠️ No se encontró un servicio de red activo para reiniciar."
+  fi
 
   echo "🔎 Verificando con nslookup:"
   echo "--------------------------------------------------"
