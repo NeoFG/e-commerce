@@ -154,6 +154,159 @@ EOF
   echo "✅ DNS tiendavirtual.local verificado correctamente."
 }
 
+
+
+# ---------------------------   PARA NAGIOS   ---------------------------------------------------------------------------------------------------
+function instalar_php() {
+  echo "📦 Instalando PHP y módulos necesarios para Apache y Nagios..."
+  dnf install -y php php-cli php-common php-gd php-mbstring php-xml php-process php-devel php-fpm php-pdo php-mysqlnd php-opcache
+
+  if [[ $? -ne 0 ]]; then
+    echo "❌ Hubo un error al instalar PHP. Verifica tu conexión o repositorios."
+    return 1
+  fi
+
+  echo "✅ PHP y módulos instalados correctamente."
+
+  echo "🔁 Reiniciando Apache para aplicar configuración de PHP..."
+  systemctl restart httpd
+
+  echo "🧪 Creando archivo de prueba PHP en /var/www/html/info.php..."
+  echo "<?php phpinfo(); ?>" > /var/www/html/info.php
+
+  IP=$(hostname -I | awk '{print $1}')
+  echo "🌐 Verifica si PHP funciona en tu navegador:"
+  echo "➡ http://$IP/info.php"
+  echo "✅ Si ves la tabla de información de PHP, está funcionando correctamente."
+}
+
+function corregir_permisos_nagios() {
+  echo "🔧 Corrigiendo configuración de Apache para Nagios..."
+
+  cat <<EOF > /etc/httpd/conf.d/nagios.conf
+ScriptAlias /nagios/cgi-bin "/usr/local/nagios/sbin"
+
+<Directory "/usr/local/nagios/sbin">
+    Options ExecCGI
+    AllowOverride None
+    Require all granted
+</Directory>
+
+Alias /nagios "/usr/local/nagios/share"
+
+<Directory "/usr/local/nagios/share">
+    DirectoryIndex index.php
+    Options None
+    AllowOverride None
+    Require all granted
+</Directory>
+EOF
+
+  echo "✅ Archivo /etc/httpd/conf.d/nagios.conf reescrito correctamente."
+
+  chmod -R o+rx /usr/local/nagios
+  echo "✅ Permisos chmod corregidos en /usr/local/nagios"
+
+  if command -v selinuxenabled >/dev/null && selinuxenabled; then
+    echo "🔐 Aplicando contextos SELinux..."
+    chcon -R -t httpd_sys_content_t /usr/local/nagios/share
+    chcon -R -t httpd_sys_script_exec_t /usr/local/nagios/sbin
+    echo "✅ Contextos SELinux corregidos."
+  else
+    echo "ℹ️ SELinux no está activo, omitiendo esta parte."
+  fi
+
+  echo "🔁 Reiniciando Apache..."
+  systemctl restart httpd
+
+  IP=$(hostname -I | awk '{print $1}')
+  echo "🌐 Nagios debería estar accesible ahora en: http://$IP/nagios"
+  echo "🔐 Usuario: nagiosadmin | Contraseña: nagios123"
+}
+
+function configurar_selinux_permisivo() {
+  echo "📛 Configurando SELinux en modo permisivo permanente..."
+  setenforce 0
+  echo "➡ SELinux puesto en modo permisivo temporalmente (setenforce 0)."
+
+  if grep -q "^SELINUX=enforcing" /etc/selinux/config; then
+    sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+  elif grep -q "^SELINUX=disabled" /etc/selinux/config; then
+    sed -i 's/^SELINUX=disabled/SELINUX=permissive/' /etc/selinux/config
+  elif grep -q "^SELINUX=permissive" /etc/selinux/config; then
+    echo "ℹ️ SELinux ya estaba configurado en modo permisivo."
+  else
+    echo "SELINUX=permissive" >> /etc/selinux/config
+  fi
+
+  echo "✅ SELinux configurado en modo permisivo permanente. Se aplicará tras reiniciar el sistema."
+}
+
+function instalar_nagios() {
+  echo "➡ Instalando dependencias para Nagios..."
+  dnf install -y gcc glibc glibc-common wget unzip httpd php perl gd gd-devel net-snmp net-snmp-utils openssl-devel xinetd
+
+  echo "➡ Creando usuario y grupo para Nagios..."
+  useradd nagios
+  groupadd nagcmd
+  usermod -a -G nagcmd nagios
+  usermod -a -G nagcmd apache
+
+  echo "📦 Descargando Nagios Core 4.4.6..."
+  cd /tmp
+  wget https://assets.nagios.com/downloads/nagioscore/releases/nagios-4.4.6.tar.gz
+  tar -zxvf nagios-4.4.6.tar.gz
+  cd nagios-4.4.6
+
+  echo "⚙️ Compilando e instalando Nagios..."
+  ./configure --with-command-group=nagcmd
+  make all
+  make install
+  make install-init
+  make install-commandmode
+  make install-config
+  make install-webconf
+
+  echo "🔐 Configurando acceso web a Nagios..."
+  htpasswd -bc /usr/local/nagios/etc/htpasswd.users nagiosadmin nagios123
+
+  echo "➡ Instalando el plugin oficial de Nagios..."
+  cd /tmp
+  wget https://nagios-plugins.org/download/nagios-plugins-2.3.3.tar.gz
+  tar -zxvf nagios-plugins-2.3.3.tar.gz
+  cd nagios-plugins-2.3.3
+  ./configure --with-nagios-user=nagios --with-nagios-group=nagios
+  make
+  make install
+
+  echo "🧪 Verificando configuración de Nagios..."
+  /usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+
+  echo "🚀 Habilitando y arrancando servicios..."
+  systemctl enable httpd
+  systemctl start httpd
+  systemctl enable nagios
+  systemctl start nagios
+
+  echo "🧱 Abriendo puertos para Nagios en el firewall..."
+  firewall-cmd --permanent --add-service=http
+  firewall-cmd --reload
+
+  echo "✅ Nagios instalado correctamente."
+  echo "🌐 Puedes acceder a la interfaz web en: http://<IP-SERVIDOR>/nagios"
+  echo "🔐 Usuario: nagiosadmin | Contraseña: nagios123"
+
+  configurar_selinux_permisivo
+  corregir_permisos_nagios
+  instalar_php
+}
+
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------
+
+
+
 function configurar_firewall() {
   echo "⚙️ Ejecutando el script de configuración del firewall..."
   # Ejecuta el script Firewall2.sh
@@ -168,7 +321,7 @@ function menu() {
   echo "2. Instalar DNS (Bind dinámico)"
   echo "3. Instalar POP3 (pendiente)"
   echo "4. Instalar SMTP (pendiente)"
-  echo "5. Instalar Nagios (pendiente)"
+  echo "5. Instalar Nagios "
   echo "6. Configurar Firewall"
   echo "7. Salir"
   echo "======================================================="
@@ -179,7 +332,7 @@ function menu() {
     2) instalar_dns ;;
     3) echo "⚠ POP3 aún no implementado." ;;
     4) echo "⚠ SMTP aún no implementado." ;;
-    5) echo "⚠ Nagios aún no implementado." ;;
+    5) instalar_nagios ;;
     6) configurar_firewall ;;
     7) echo "👋 Saliendo. ¡Gracias!" ; exit 0 ;;
     *) echo "❌ Opción inválida. Intenta nuevamente." ;;
