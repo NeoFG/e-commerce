@@ -144,6 +144,13 @@ EOF
   echo "✅ DNS tiendavirtual.local verificado correctamente."
 }
 
+function configurar_firewall() {
+  echo "⚙️ Ejecutando el script de configuración del firewall..."
+  # Ejecuta el script Firewall2.sh
+  ./Firewall2.sh
+  echo "✅ Configuración del firewall completada."
+}
+
 function menu() {
   clear
   echo "========= MENÚ DE CONFIGURACIÓN DEL SERVIDOR ========="
@@ -152,7 +159,7 @@ function menu() {
   echo "3. Instalar POP3 (pendiente)"
   echo "4. Instalar SMTP (pendiente)"
   echo "5. Instalar Nagios (pendiente)"
-  echo "6. Configurar Firewall (pendiente)"
+  echo "6. Configurar Firewall"
   echo "7. Salir"
   echo "======================================================="
   read -p "Selecciona una opción: " opcion
@@ -163,7 +170,7 @@ function menu() {
     3) echo "⚠ POP3 aún no implementado." ;;
     4) echo "⚠ SMTP aún no implementado." ;;
     5) echo "⚠ Nagios aún no implementado." ;;
-    6) echo "⚠ Firewall general aún no implementado." ;;
+    6) configurar_firewall ;;
     7) echo "👋 Saliendo. ¡Gracias!" ; exit 0 ;;
     *) echo "❌ Opción inválida. Intenta nuevamente." ;;
   esac
@@ -176,4 +183,5 @@ while true; do
   read -p "¿Deseas volver al menú? (s/n): " continuar
   [[ "$continuar" != "s" ]] && break
 done
-
+  
+    
